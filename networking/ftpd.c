@@ -622,7 +622,7 @@ popen_ls(const char *opt)
 	pid_t pid;
 
 	argv[0] = "ftpd";
-	argv[1] = opt; /* "-l" or "-1" */
+	argv[1] = opt; /* "-lA" or "-1A" */
 	argv[2] = "--";
 	argv[3] = G.ftp_arg;
 	argv[4] = NULL;
@@ -699,7 +699,7 @@ handle_dir_common(int opts)
 	if (!(opts & USE_CTRL_CONN) && !port_or_pasv_was_seen())
 		return; /* port_or_pasv_was_seen emitted error response */
 
-	ls_fd = popen_ls((opts & LONG_LISTING) ? "-l" : "-1");
+	ls_fd = popen_ls((opts & LONG_LISTING) ? "-lA" : "-1A");
 	ls_fp = xfdopen_for_read(ls_fd);
 /* FIXME: filenames with embedded newlines are mishandled */
 
@@ -1102,10 +1102,11 @@ enum {
 #if !BB_MMU
 	OPT_l = (1 << 0),
 	OPT_1 = (1 << 1),
+	OPT_A = (1 << 2),
 #endif
-	OPT_v = (1 << ((!BB_MMU) * 2 + 0)),
-	OPT_S = (1 << ((!BB_MMU) * 2 + 1)),
-	OPT_w = (1 << ((!BB_MMU) * 2 + 2)) * ENABLE_FEATURE_FTP_WRITE,
+	OPT_v = (1 << ((!BB_MMU) * 3 + 0)),
+	OPT_S = (1 << ((!BB_MMU) * 3 + 1)),
+	OPT_w = (1 << ((!BB_MMU) * 3 + 2)) * ENABLE_FEATURE_FTP_WRITE,
 };
 
 int ftpd_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
@@ -1126,12 +1127,11 @@ int ftpd_main(int argc UNUSED_PARAM, char **argv)
 	G.timeout = 2 * 60;
 	opt_complementary = "t+:T+:vv:SS";
 #if BB_MMU
-	opts = getopt32(argv,   "vS" IF_FEATURE_FTP_WRITE("w") "t:T:", &G.timeout, &abs_timeout, &G.verbose, &verbose_S);
+	opts = getopt32(argv,    "vS" IF_FEATURE_FTP_WRITE("w") "t:T:", &G.timeout, &abs_timeout, &G.verbose, &verbose_S);
 #else
-	opts = getopt32(argv, "l1vS" IF_FEATURE_FTP_WRITE("w") "t:T:", &G.timeout, &abs_timeout, &G.verbose, &verbose_S);
+	opts = getopt32(argv, "l1AvS" IF_FEATURE_FTP_WRITE("w") "t:T:", &G.timeout, &abs_timeout, &G.verbose, &verbose_S);
 	if (opts & (OPT_l|OPT_1)) {
 		/* Our secret backdoor to ls */
-/* TODO: pass -A? It shows dot files */
 /* TODO: pass --group-directories-first? would be nice, but ls doesn't do that yet */
 		if (fchdir(3) != 0)
 			_exit(127);
@@ -1174,8 +1174,13 @@ int ftpd_main(int argc UNUSED_PARAM, char **argv)
 
 	//umask(077); - admin can set umask before starting us
 
-	/* Signals. We'll always take -EPIPE rather than a rude signal, thanks */
-	signal(SIGPIPE, SIG_IGN);
+	/* Signals */
+	bb_signals(0
+		/* We'll always take EPIPE rather than a rude signal, thanks */
+		+ (1 << SIGPIPE)
+		/* LIST command spawns chilren. Prevent zombies */
+		+ (1 << SIGCHLD)
+		, SIG_IGN);
 
 	/* Set up options on the command socket (do we need these all? why?) */
 	setsockopt(STDIN_FILENO, IPPROTO_TCP, TCP_NODELAY, &const_int_1, sizeof(const_int_1));

@@ -181,14 +181,6 @@ config FEATURE_HTTPD_RANGES
 	  "Range: bytes=NNN-[MMM]" header. Allows for resuming interrupted
 	  downloads, seeking in multimedia players etc.
 
-config FEATURE_HTTPD_USE_SENDFILE
-	bool "Use sendfile system call"
-	default y
-	depends on HTTPD
-	help
-	  When enabled, httpd will use the kernel sendfile() function
-	  instead of read/write loop.
-
 config FEATURE_HTTPD_SETUID
 	bool "Enable -u <user> option"
 	default y
@@ -758,8 +750,7 @@ config TELNETD
 
 	  Note that for busybox telnetd to work you need several things:
 	  First of all, your kernel needs:
-		  UNIX98_PTYS=y
-		  DEVPTS_FS=y
+		  CONFIG_UNIX98_PTYS=y
 
 	  Next, you need a /dev/pts directory on your root filesystem:
 
